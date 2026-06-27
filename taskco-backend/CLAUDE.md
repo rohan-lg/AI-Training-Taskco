@@ -1,7 +1,7 @@
 # Taskco Backend — Claude Instructions
 
 ## Stack
-TypeScript 5.x (`strict: true`), Fastify 5, Prisma 7 (`prisma-client` WASM generator), PostgreSQL via Neon, pnpm, Vitest.
+TypeScript 5.x (`strict: true`), Fastify 5, Prisma 7 (`prisma-client` WASM generator), PostgreSQL via Neon, Zod 4, bcryptjs, jose, pnpm, Vitest.
 
 ## Entry Point
 `src/index.ts` — Fastify server on port 3000.
@@ -9,20 +9,23 @@ TypeScript 5.x (`strict: true`), Fastify 5, Prisma 7 (`prisma-client` WASM gener
 ## Folder Layout
 ```
 src/
-  index.ts           # server bootstrap only
-  routes/            # Fastify route registrations
-  services/          # business logic + Prisma calls
+  index.ts                        # server bootstrap — loads dotenv first, registers plugins
+  routes/
+    auth.ts                       # POST /auth/register (login added later)
+  services/
+    auth.service.ts               # registerUser — hashes password, creates user, signs JWT
   lib/
-    db.ts            # Prisma singleton (import from here only)
-    api-response.ts  # ok() / fail() envelope helpers
-    auth.ts          # hashPassword, verifyPassword, signJwt, verifyJwt, getUserFromRequest
-    validations/     # Zod schemas shared by routes and (future) frontend
+    db.ts                         # Prisma singleton (import from here only)
+    api-response.ts               # ok() / fail() envelope helpers
+    auth.ts                       # hashPassword, signJwt (verifyJwt + getUserFromRequest added later)
+    validations/
+      auth.schema.ts              # registerSchema (loginSchema added later)
   generated/
-    prisma/          # gitignored — Prisma 7 client output
+    prisma/                       # gitignored — Prisma 7 WASM client output
 prisma/
   schema.prisma
-  migrations/        # committed — never edit migration SQL by hand
-prisma.config.ts     # Prisma 7 config — datasource URL + dotenv bootstrap
+  migrations/                     # committed — never edit migration SQL by hand
+prisma.config.ts                  # Prisma 7 CLI config — datasource URL + dotenv bootstrap
 ```
 
 ## Data Model
@@ -81,13 +84,34 @@ Every route handler is wrapped in try/catch; unknown errors → `fail("INTERNAL"
 Zod at every route boundary. Schemas live in `src/lib/validations/`. Parse input before calling any service; never pass raw request data to a service.
 
 ## Auth
-JWT via `jose`. Verify inside route handlers with `getUserFromRequest`. Never trust a client-supplied user ID — always derive it from the verified token.
+JWT via `jose`. Algorithm: HS256. Expiry: `7d`. Secret from `process.env.JWT_SECRET`.
+JWT payload: `{ userId, email }`.
+Verify tokens inside route handlers with `getUserFromRequest` (not yet implemented — added with login).
+Never trust a client-supplied user ID — always derive it from the verified token.
+
+**Password hashing:** bcryptjs, 12 salt rounds. Field is always `passwordHash`. Never return it in responses — use Prisma `select` to exclude it explicitly.
+
+## Implemented Endpoints
+
+| Method | Path | Auth | Status |
+|---|---|---|---|
+| `POST` | `/auth/register` | — | ✅ |
+
+**Register flow:** Zod parse → hash password (bcryptjs, 12 rounds) → `prisma.user.create` with `select` (no passwordHash) → sign JWT → return `{ data: { token, user } }`.
+Prisma error `P2002` on `email` → 409 CONFLICT.
 
 ## Prisma Config (Prisma 7)
 - `prisma.config.ts` at the repo root loads `.env` via `import 'dotenv/config'` then sets `datasource.url`.
 - Add `&connect_timeout=30` to `DATABASE_URL` — required for Neon cold-start on first connection.
 - Generator: `provider = "prisma-client"` (WASM, no Rust binary at runtime), output: `src/generated/prisma`.
+- Runtime client in `src/lib/db.ts` uses `@prisma/adapter-pg` (`pg.Pool` + `PrismaPg`) — required by the WASM client.
 - Import the client only through `src/lib/db.ts`.
-- Schema changes: edit `prisma/schema.prisma`, then run `pnpm prisma migrate dev --name <migration-name>`.
+- Schema changes: edit `prisma/schema.prisma`, then run `pnpm prisma migrate dev --name <migration-name>`, then `pnpm prisma generate`.
 - Migration files in `prisma/migrations/` are committed and must never be edited by hand.
 - `db push` is for quick iteration without a migration history; use `migrate dev` for all model changes.
+
+## Required Environment Variables
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | Neon PostgreSQL connection string (include `&connect_timeout=30`) |
+| `JWT_SECRET` | HS256 signing key — must be a long random string in production |

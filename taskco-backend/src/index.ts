@@ -1,10 +1,14 @@
+import 'dotenv/config';
 import Fastify from 'fastify';
+import { authRoutes } from './routes/auth.js';
 
 const server = Fastify({ logger: true });
 
 server.get('/', async () => {
   return { status: 'ok', message: 'Taskco backend is running' };
 });
+
+server.register(authRoutes);
 
 const start = async () => {
   try {
