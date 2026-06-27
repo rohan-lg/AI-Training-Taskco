@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
-import { registerSchema } from '../lib/validations/auth.schema.js';
-import { registerUser } from '../services/auth.service.js';
+import { registerSchema, loginSchema } from '../lib/validations/auth.schema.js';
+import { registerUser, loginUser } from '../services/auth.service.js';
 import { ok, fail } from '../lib/api-response.js';
 
 export async function authRoutes(fastify: FastifyInstance) {
@@ -17,6 +17,24 @@ export async function authRoutes(fastify: FastifyInstance) {
       if (isPrismaUniqueViolation(err)) {
         return fail(reply, 'CONFLICT', 'Email already exists', 409);
       }
+      fastify.log.error(err);
+      return fail(reply, 'INTERNAL', 'Internal server error', 500);
+    }
+  });
+
+  fastify.post('/auth/login', async (request, reply) => {
+    const parsed = loginSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return fail(reply, 'VALIDATION_ERROR', 'Validation failed', 400, parsed.error.flatten().fieldErrors);
+    }
+
+    try {
+      const result = await loginUser(parsed.data);
+      if (!result) {
+        return fail(reply, 'UNAUTHORIZED', 'Invalid email or password', 401);
+      }
+      return ok(reply, result);
+    } catch (err: unknown) {
       fastify.log.error(err);
       return fail(reply, 'INTERNAL', 'Internal server error', 500);
     }

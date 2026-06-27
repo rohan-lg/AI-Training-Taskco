@@ -11,15 +11,15 @@ TypeScript 5.x (`strict: true`), Fastify 5, Prisma 7 (`prisma-client` WASM gener
 src/
   index.ts                        # server bootstrap — loads dotenv first, registers plugins
   routes/
-    auth.ts                       # POST /auth/register (login added later)
+    auth.ts                       # POST /auth/register, POST /auth/login
   services/
-    auth.service.ts               # registerUser — hashes password, creates user, signs JWT
+    auth.service.ts               # registerUser, loginUser
   lib/
     db.ts                         # Prisma singleton (import from here only)
     api-response.ts               # ok() / fail() envelope helpers
-    auth.ts                       # hashPassword, signJwt (verifyJwt + getUserFromRequest added later)
+    auth.ts                       # hashPassword, verifyPassword, signJwt (verifyJwt + getUserFromRequest added later)
     validations/
-      auth.schema.ts              # registerSchema (loginSchema added later)
+      auth.schema.ts              # registerSchema, loginSchema
   generated/
     prisma/                       # gitignored — Prisma 7 WASM client output
 prisma/
@@ -96,9 +96,13 @@ Never trust a client-supplied user ID — always derive it from the verified tok
 | Method | Path | Auth | Status |
 |---|---|---|---|
 | `POST` | `/auth/register` | — | ✅ |
+| `POST` | `/auth/login` | — | ✅ |
 
-**Register flow:** Zod parse → hash password (bcryptjs, 12 rounds) → `prisma.user.create` with `select` (no passwordHash) → sign JWT → return `{ data: { token, user } }`.
+**Register flow:** Zod parse → hash password (bcryptjs, 12 rounds) → `prisma.user.create` with `select` (no passwordHash) → sign JWT → 201 `{ data: { token, user } }`.
 Prisma error `P2002` on `email` → 409 CONFLICT.
+
+**Login flow:** Zod parse → `prisma.user.findUnique` by email (selecting `passwordHash`) → `verifyPassword` (bcrypt.compare) → if user not found or password wrong return `null` → route returns 401. On success, strip `passwordHash` via destructure, sign JWT → 200 `{ data: { token, user } }`.
+Both "user not found" and "wrong password" return the same 401 message — never reveal which condition failed.
 
 ## Prisma Config (Prisma 7)
 - `prisma.config.ts` at the repo root loads `.env` via `import 'dotenv/config'` then sets `datasource.url`.

@@ -7,6 +7,10 @@ export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, SALT_ROUNDS);
 }
 
+export async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  return bcrypt.compare(password, hash);
+}
+
 export async function signJwt(payload: { userId: string; email: string }): Promise<string> {
   const secret = new TextEncoder().encode(process.env.JWT_SECRET);
   return new SignJWT(payload as Record<string, unknown>)

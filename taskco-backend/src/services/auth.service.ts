@@ -1,6 +1,28 @@
 import { prisma } from '../lib/db.js';
-import { hashPassword, signJwt } from '../lib/auth.js';
-import type { RegisterInput } from '../lib/validations/auth.schema.js';
+import { hashPassword, verifyPassword, signJwt } from '../lib/auth.js';
+import type { RegisterInput, LoginInput } from '../lib/validations/auth.schema.js';
+
+export async function loginUser(input: LoginInput) {
+  const user = await prisma.user.findUnique({
+    where: { email: input.email },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      createdAt: true,
+      passwordHash: true,
+    },
+  });
+
+  if (!user || !(await verifyPassword(input.password, user.passwordHash))) {
+    return null;
+  }
+
+  const { passwordHash: _, ...safeUser } = user;
+  const token = await signJwt({ userId: safeUser.id, email: safeUser.email });
+
+  return { token, user: safeUser };
+}
 
 export async function registerUser(input: RegisterInput) {
   const passwordHash = await hashPassword(input.password);
