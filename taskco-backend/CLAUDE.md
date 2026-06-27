@@ -9,7 +9,8 @@ TypeScript 5.x (`strict: true`), Fastify 5, Prisma 7 (`prisma-client` WASM gener
 ## Folder Layout
 ```
 src/
-  index.ts                        # server bootstrap — loads dotenv first, registers plugins
+  index.ts                        # server entry point — loads dotenv, calls buildApp({ logger: true })
+  app.ts                          # buildApp(opts?) factory — used by server and tests
   routes/
     auth.ts                       # POST /auth/register, POST /auth/login
   services/
@@ -22,10 +23,14 @@ src/
       auth.schema.ts              # registerSchema, loginSchema
   generated/
     prisma/                       # gitignored — Prisma 7 WASM client output
+tests/
+  setup.ts                        # vitest setup — loads dotenv/config
+  auth.test.ts                    # register + login integration tests (9 tests)
 prisma/
   schema.prisma
   migrations/                     # committed — never edit migration SQL by hand
 prisma.config.ts                  # Prisma 7 CLI config — datasource URL + dotenv bootstrap
+vitest.config.ts                  # test environment: node, setupFiles: tests/setup.ts, timeout: 30s
 ```
 
 ## Data Model
@@ -113,6 +118,14 @@ Both "user not found" and "wrong password" return the same 401 message — never
 - Schema changes: edit `prisma/schema.prisma`, then run `pnpm prisma migrate dev --name <migration-name>`, then `pnpm prisma generate`.
 - Migration files in `prisma/migrations/` are committed and must never be edited by hand.
 - `db push` is for quick iteration without a migration history; use `migrate dev` for all model changes.
+
+## Testing
+
+**Runner:** Vitest (`pnpm test`). Do not use Jest or Supertest.
+**App instance:** `buildApp()` from `src/app.ts` — creates a Fastify app with `logger: false` by default. Use `app.inject()` for HTTP assertions.
+**Database:** Tests hit the real Neon database. Test emails use the `@test.taskco` domain. `beforeEach` calls `prisma.user.deleteMany` with those emails to ensure isolation. `afterAll` does a final cleanup and calls `app.close()`.
+**Timeout:** 30 s per test (Neon cold-start on first connection can be slow).
+**Coverage:** Register — success, duplicate email, invalid email, missing password, missing name. Login — success, wrong password, unknown email, validation failure.
 
 ## Required Environment Variables
 | Variable | Purpose |
