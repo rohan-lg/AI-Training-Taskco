@@ -21,8 +21,25 @@ src/
     prisma/          # gitignored — Prisma 7 client output
 prisma/
   schema.prisma
+  migrations/        # committed — never edit migration SQL by hand
 prisma.config.ts     # Prisma 7 config — datasource URL + dotenv bootstrap
 ```
+
+## Data Model
+
+### User
+| Field | Type | Constraint |
+|---|---|---|
+| `id` | `String` | `@id @default(cuid())` |
+| `email` | `String` | `@unique` |
+| `passwordHash` | `String` | never store plaintext passwords |
+| `name` | `String` | — |
+| `createdAt` | `DateTime` | `@default(now())` |
+
+**Field rules:**
+- Field is `passwordHash`, not `password` or `hashedPassword`.
+- No `updatedAt`, `role`, `avatar`, or `isActive` on User.
+- No `projects` relation yet — added in a later lab.
 
 ## Architecture Rules
 - Routes: validate input → check auth → call service → return envelope. No Prisma in routes.
@@ -69,5 +86,8 @@ JWT via `jose`. Verify inside route handlers with `getUserFromRequest`. Never tr
 ## Prisma Config (Prisma 7)
 - `prisma.config.ts` at the repo root loads `.env` via `import 'dotenv/config'` then sets `datasource.url`.
 - Add `&connect_timeout=30` to `DATABASE_URL` — required for Neon cold-start on first connection.
-- Generator: `provider = "prisma-client"`, output: `src/generated/prisma`.
+- Generator: `provider = "prisma-client"` (WASM, no Rust binary at runtime), output: `src/generated/prisma`.
 - Import the client only through `src/lib/db.ts`.
+- Schema changes: edit `prisma/schema.prisma`, then run `pnpm prisma migrate dev --name <migration-name>`.
+- Migration files in `prisma/migrations/` are committed and must never be edited by hand.
+- `db push` is for quick iteration without a migration history; use `migrate dev` for all model changes.
