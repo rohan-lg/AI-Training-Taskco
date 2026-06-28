@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
+import { SignJWT } from 'jose';
 import { buildApp } from '../src/app.js';
 import { prisma } from '../src/lib/db.js';
 
@@ -7,6 +8,7 @@ const TEST_EMAILS = [
   'reg-ok@test.taskco',
   'dup@test.taskco',
   'login-ok@test.taskco',
+  'me@test.taskco',
 ];
 
 const app = buildApp();
@@ -156,5 +158,74 @@ describe('POST /auth/login', () => {
 
     expect(res.statusCode).toBe(400);
     expect(res.json().error.code).toBe('VALIDATION_ERROR');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GET /auth/me
+// ---------------------------------------------------------------------------
+describe('GET /auth/me', () => {
+  let validToken: string;
+
+  beforeEach(async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/auth/register',
+      payload: { email: 'me@test.taskco', password: 'password123', name: 'Dave' },
+    });
+    validToken = res.json().data.token;
+  });
+
+  it('returns the authenticated user profile (no passwordHash)', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/auth/me',
+      headers: { Authorization: `Bearer ${validToken}` },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const { data } = res.json();
+    expect(data.id).toBeTruthy();
+    expect(data.email).toBe('me@test.taskco');
+    expect(data.name).toBe('Dave');
+    expect(data.createdAt).toBeTruthy();
+    expect(data.passwordHash).toBeUndefined();
+    expect(data.password).toBeUndefined();
+  });
+
+  it('returns 401 when Authorization header is missing', async () => {
+    const res = await app.inject({ method: 'GET', url: '/auth/me' });
+
+    expect(res.statusCode).toBe(401);
+    expect(res.json().error.code).toBe('UNAUTHORIZED');
+  });
+
+  it('returns 401 when token is malformed', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/auth/me',
+      headers: { Authorization: 'Bearer this.is.not.a.jwt' },
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(res.json().error.code).toBe('UNAUTHORIZED');
+  });
+
+  it('returns 401 when token is expired', async () => {
+    const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+    const expiredToken = await new SignJWT({ userId: 'test-id', email: 'me@test.taskco' })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuedAt()
+      .setExpirationTime(new Date(Date.now() - 1000))
+      .sign(secret);
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/auth/me',
+      headers: { Authorization: `Bearer ${expiredToken}` },
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(res.json().error.code).toBe('UNAUTHORIZED');
   });
 });

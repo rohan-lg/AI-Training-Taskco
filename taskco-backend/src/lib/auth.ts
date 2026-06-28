@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { SignJWT } from 'jose';
+import { SignJWT, jwtVerify } from 'jose';
 
 const SALT_ROUNDS = 12;
 
@@ -18,4 +18,13 @@ export async function signJwt(payload: { userId: string; email: string }): Promi
     .setIssuedAt()
     .setExpirationTime('7d')
     .sign(secret);
+}
+
+export async function verifyJwt(token: string): Promise<{ userId: string; email: string }> {
+  const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+  const { payload } = await jwtVerify(token, secret);
+  return {
+    userId: payload.userId as string,
+    email: payload.email as string,
+  };
 }

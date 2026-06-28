@@ -24,6 +24,13 @@ export async function loginUser(input: LoginInput) {
   return { token, user: safeUser };
 }
 
+export async function getMe(userId: string) {
+  return prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, email: true, name: true, createdAt: true },
+  });
+}
+
 export async function registerUser(input: RegisterInput) {
   const passwordHash = await hashPassword(input.password);
 

@@ -1,7 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { registerSchema, loginSchema } from '../lib/validations/auth.schema.js';
-import { registerUser, loginUser } from '../services/auth.service.js';
+import { registerUser, loginUser, getMe } from '../services/auth.service.js';
 import { ok, fail } from '../lib/api-response.js';
+import { authenticate } from '../lib/authenticate.js';
 
 export async function authRoutes(fastify: FastifyInstance) {
   fastify.post('/auth/register', async (request, reply) => {
@@ -34,6 +35,18 @@ export async function authRoutes(fastify: FastifyInstance) {
         return fail(reply, 'UNAUTHORIZED', 'Invalid email or password', 401);
       }
       return ok(reply, result);
+    } catch (err: unknown) {
+      fastify.log.error(err);
+      return fail(reply, 'INTERNAL', 'Internal server error', 500);
+    }
+  });
+  fastify.get('/auth/me', { preHandler: authenticate }, async (request, reply) => {
+    try {
+      const user = await getMe(request.user.userId);
+      if (!user) {
+        return fail(reply, 'NOT_FOUND', 'User not found', 404);
+      }
+      return ok(reply, user);
     } catch (err: unknown) {
       fastify.log.error(err);
       return fail(reply, 'INTERNAL', 'Internal server error', 500);
