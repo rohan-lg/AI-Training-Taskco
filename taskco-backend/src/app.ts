@@ -3,7 +3,7 @@ import { authRoutes } from './routes/auth.js';
 import { projectRoutes } from './routes/projects.js';
 
 export function buildApp(opts: FastifyServerOptions = {}) {
-  const app = Fastify({ logger: false, ...opts });
+  const app = Fastify({ logger: false, bodyLimit: 65_536, ...opts });
 
   app.get('/', async () => {
     return { status: 'ok', message: 'Taskco backend is running' };

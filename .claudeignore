@@ -1,0 +1,4 @@
+# Never expose secrets to Claude Code sessions
+**/.env
+**/.env.*
+!**/.env.example

@@ -95,6 +95,71 @@ describe('POST /projects', () => {
 
     expect(res.statusCode).toBe(401);
   });
+
+  it('returns 400 when name exceeds 100 characters', async () => {
+    const token = await registerAndGetToken('proj-a@test.taskco', 'Alice');
+    const res = await app.inject({
+      method: 'POST',
+      url: '/projects',
+      headers: { Authorization: `Bearer ${token}` },
+      payload: { name: 'a'.repeat(101) },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('returns 400 when description exceeds 1000 characters', async () => {
+    const token = await registerAndGetToken('proj-a@test.taskco', 'Alice');
+    const res = await app.inject({
+      method: 'POST',
+      url: '/projects',
+      headers: { Authorization: `Bearer ${token}` },
+      payload: { name: 'Valid Name', description: 'd'.repeat(1001) },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('returns 400 when color is not a valid hex value', async () => {
+    const token = await registerAndGetToken('proj-a@test.taskco', 'Alice');
+    const res = await app.inject({
+      method: 'POST',
+      url: '/projects',
+      headers: { Authorization: `Bearer ${token}` },
+      payload: { name: 'Bad Color', color: 'red' },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('accepts 3-digit hex color (#fff)', async () => {
+    const token = await registerAndGetToken('proj-a@test.taskco', 'Alice');
+    const res = await app.inject({
+      method: 'POST',
+      url: '/projects',
+      headers: { Authorization: `Bearer ${token}` },
+      payload: { name: 'Short Hex', color: '#fff' },
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(res.json().data.project.color).toBe('#fff');
+  });
+
+  it('accepts 8-digit hex color with alpha (#ff000080)', async () => {
+    const token = await registerAndGetToken('proj-a@test.taskco', 'Alice');
+    const res = await app.inject({
+      method: 'POST',
+      url: '/projects',
+      headers: { Authorization: `Bearer ${token}` },
+      payload: { name: 'Alpha Hex', color: '#ff000080' },
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(res.json().data.project.color).toBe('#ff000080');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -293,6 +358,48 @@ describe('PATCH /projects/:id', () => {
       payload: { name: 'Test' },
     });
     expect(res.statusCode).toBe(401);
+  });
+
+  it('returns 400 when patching color to an invalid hex value', async () => {
+    const token = await registerAndGetToken('proj-a@test.taskco', 'Alice');
+    const createRes = await app.inject({
+      method: 'POST',
+      url: '/projects',
+      headers: { Authorization: `Bearer ${token}` },
+      payload: { name: 'Color Test Project' },
+    });
+    const projectId = createRes.json().data.project.id;
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/projects/${projectId}`,
+      headers: { Authorization: `Bearer ${token}` },
+      payload: { color: 'blue' },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('returns 400 when patching name to over 100 characters', async () => {
+    const token = await registerAndGetToken('proj-a@test.taskco', 'Alice');
+    const createRes = await app.inject({
+      method: 'POST',
+      url: '/projects',
+      headers: { Authorization: `Bearer ${token}` },
+      payload: { name: 'Original' },
+    });
+    const projectId = createRes.json().data.project.id;
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/projects/${projectId}`,
+      headers: { Authorization: `Bearer ${token}` },
+      payload: { name: 'n'.repeat(101) },
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('VALIDATION_ERROR');
   });
 });
 
