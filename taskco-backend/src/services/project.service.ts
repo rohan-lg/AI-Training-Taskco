@@ -17,10 +17,11 @@ export async function listProjects(ownerId: string) {
 export async function getProjectById(id: string, ownerId: string) {
   const project = await prisma.project.findFirst({
     where: { id, ownerId },
+    include: { _count: { select: { tasks: true } } },
   });
   if (!project) return null;
-  // taskCount will use _count.tasks once Task model is added
-  return { ...project, taskCount: 0 };
+  const { _count, ...rest } = project;
+  return { ...rest, taskCount: _count.tasks };
 }
 
 export async function updateProject(id: string, ownerId: string, input: UpdateProjectInput) {
