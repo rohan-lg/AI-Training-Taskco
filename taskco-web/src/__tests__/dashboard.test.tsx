@@ -64,24 +64,24 @@ describe('DashboardPage', () => {
   it('shows loading state while fetching projects', async () => {
     mockApiFetch.mockReturnValueOnce(new Promise(() => {})) // never resolves
     setup()
-    expect(await screen.findByRole('status')).toHaveTextContent('Loading projects…')
+    expect(await screen.findByRole('status', { name: 'Loading projects' })).toBeInTheDocument()
   })
 
   it('renders a project card for each project returned', async () => {
-    mockApiFetch.mockResolvedValueOnce(FAKE_PROJECTS)
+    mockApiFetch.mockResolvedValueOnce({ projects: FAKE_PROJECTS })
     setup()
     expect(await screen.findByText('Alpha Project')).toBeInTheDocument()
     expect(screen.getByText('Beta Project')).toBeInTheDocument()
   })
 
   it('shows project description when present', async () => {
-    mockApiFetch.mockResolvedValueOnce(FAKE_PROJECTS)
+    mockApiFetch.mockResolvedValueOnce({ projects: FAKE_PROJECTS })
     setup()
     expect(await screen.findByText('First project description')).toBeInTheDocument()
   })
 
   it('renders project cards as links to /projects/:id', async () => {
-    mockApiFetch.mockResolvedValueOnce(FAKE_PROJECTS)
+    mockApiFetch.mockResolvedValueOnce({ projects: FAKE_PROJECTS })
     setup()
     await screen.findByText('Alpha Project')
     const link = screen.getByRole('link', { name: /alpha project/i })
@@ -89,9 +89,9 @@ describe('DashboardPage', () => {
   })
 
   it('shows empty state when no projects exist', async () => {
-    mockApiFetch.mockResolvedValueOnce([])
+    mockApiFetch.mockResolvedValueOnce({ projects: [] })
     setup()
-    expect(await screen.findByText('No projects yet.')).toBeInTheDocument()
+    expect(await screen.findByText('No projects yet')).toBeInTheDocument()
   })
 
   it('shows error state when fetch fails', async () => {
@@ -106,7 +106,7 @@ describe('DashboardPage', () => {
   })
 
   it('calls GET /projects endpoint', async () => {
-    mockApiFetch.mockResolvedValueOnce([])
+    mockApiFetch.mockResolvedValueOnce({ projects: [] })
     setup()
     await waitFor(() => {
       expect(mockApiFetch).toHaveBeenCalledWith('/projects')
@@ -114,9 +114,9 @@ describe('DashboardPage', () => {
   })
 
   it('renders the page heading "Projects"', async () => {
-    mockApiFetch.mockResolvedValueOnce([])
+    mockApiFetch.mockResolvedValueOnce({ projects: [] })
     setup()
-    await screen.findByText('No projects yet.')
+    await screen.findByText('No projects yet')
     expect(screen.getByRole('heading', { name: 'Projects' })).toBeInTheDocument()
   })
 })

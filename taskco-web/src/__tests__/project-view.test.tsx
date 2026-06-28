@@ -43,6 +43,7 @@ const FAKE_TASKS: Task[] = [
     dueDate: '2024-12-31T00:00:00.000Z',
     projectId: 'proj-1',
     createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T00:00:00.000Z',
   },
   {
     id: 'task-2',
@@ -53,6 +54,7 @@ const FAKE_TASKS: Task[] = [
     dueDate: null,
     projectId: 'proj-1',
     createdAt: '2024-01-02T00:00:00.000Z',
+    updatedAt: '2024-01-02T00:00:00.000Z',
   },
 ]
 
@@ -84,8 +86,8 @@ describe('ProjectPage', () => {
 
   it('renders project name in the header', async () => {
     mockApiFetch
-      .mockResolvedValueOnce(FAKE_PROJECT)
-      .mockResolvedValueOnce(FAKE_TASKS)
+      .mockResolvedValueOnce({ project: FAKE_PROJECT })
+      .mockResolvedValueOnce({ tasks: FAKE_TASKS })
 
     setup()
     expect(await screen.findByRole('heading', { name: 'My Project' })).toBeInTheDocument()
@@ -93,8 +95,8 @@ describe('ProjectPage', () => {
 
   it('renders project description', async () => {
     mockApiFetch
-      .mockResolvedValueOnce(FAKE_PROJECT)
-      .mockResolvedValueOnce(FAKE_TASKS)
+      .mockResolvedValueOnce({ project: FAKE_PROJECT })
+      .mockResolvedValueOnce({ tasks: FAKE_TASKS })
 
     setup()
     await screen.findByRole('heading', { name: 'My Project' })
@@ -103,8 +105,8 @@ describe('ProjectPage', () => {
 
   it('shows the task count from the project', async () => {
     mockApiFetch
-      .mockResolvedValueOnce(FAKE_PROJECT)
-      .mockResolvedValueOnce(FAKE_TASKS)
+      .mockResolvedValueOnce({ project: FAKE_PROJECT })
+      .mockResolvedValueOnce({ tasks: FAKE_TASKS })
 
     setup()
     await screen.findByRole('heading', { name: 'My Project' })
@@ -113,8 +115,8 @@ describe('ProjectPage', () => {
 
   it('renders task titles in the task list', async () => {
     mockApiFetch
-      .mockResolvedValueOnce(FAKE_PROJECT)
-      .mockResolvedValueOnce(FAKE_TASKS)
+      .mockResolvedValueOnce({ project: FAKE_PROJECT })
+      .mockResolvedValueOnce({ tasks: FAKE_TASKS })
 
     setup()
     expect(await screen.findByText('Fix login bug')).toBeInTheDocument()
@@ -123,19 +125,20 @@ describe('ProjectPage', () => {
 
   it('renders status and priority badges on tasks', async () => {
     mockApiFetch
-      .mockResolvedValueOnce(FAKE_PROJECT)
-      .mockResolvedValueOnce(FAKE_TASKS)
+      .mockResolvedValueOnce({ project: FAKE_PROJECT })
+      .mockResolvedValueOnce({ tasks: FAKE_TASKS })
 
     setup()
     await screen.findByText('Fix login bug')
-    expect(screen.getByText('IN PROGRESS')).toBeInTheDocument()
+    // status is a <select>; each card renders all options so multiple 'IN PROGRESS' exist
+    expect(screen.getAllByText('IN PROGRESS').length).toBeGreaterThan(0)
     expect(screen.getByText('HIGH')).toBeInTheDocument()
   })
 
   it('shows empty state when no tasks exist', async () => {
     mockApiFetch
-      .mockResolvedValueOnce(FAKE_PROJECT)
-      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce({ project: FAKE_PROJECT })
+      .mockResolvedValueOnce({ tasks: [] })
 
     setup()
     expect(await screen.findByText('No tasks found.')).toBeInTheDocument()
@@ -157,45 +160,45 @@ describe('ProjectPage', () => {
 
   it('shows a link back to /dashboard', async () => {
     mockApiFetch
-      .mockResolvedValueOnce(FAKE_PROJECT)
-      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce({ project: FAKE_PROJECT })
+      .mockResolvedValueOnce({ tasks: [] })
 
     setup()
     await screen.findByRole('heading', { name: 'My Project' })
     expect(screen.getByRole('link', { name: /dashboard/i })).toHaveAttribute('href', '/dashboard')
   })
 
-  it('renders status filter dropdown', async () => {
+  it('renders status filter tabs', async () => {
     mockApiFetch
-      .mockResolvedValueOnce(FAKE_PROJECT)
-      .mockResolvedValueOnce(FAKE_TASKS)
+      .mockResolvedValueOnce({ project: FAKE_PROJECT })
+      .mockResolvedValueOnce({ tasks: FAKE_TASKS })
 
     setup()
     await screen.findByRole('heading', { name: 'My Project' })
-    expect(screen.getByRole('combobox', { name: /filter by status/i })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: /filter by status/i })).toBeInTheDocument()
   })
 
-  it('renders priority filter dropdown', async () => {
+  it('renders priority filter tabs', async () => {
     mockApiFetch
-      .mockResolvedValueOnce(FAKE_PROJECT)
-      .mockResolvedValueOnce(FAKE_TASKS)
+      .mockResolvedValueOnce({ project: FAKE_PROJECT })
+      .mockResolvedValueOnce({ tasks: FAKE_TASKS })
 
     setup()
     await screen.findByRole('heading', { name: 'My Project' })
-    expect(screen.getByRole('combobox', { name: /filter by priority/i })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: /filter by priority/i })).toBeInTheDocument()
   })
 
   it('triggers a new task fetch when status filter changes', async () => {
     mockApiFetch
-      .mockResolvedValueOnce(FAKE_PROJECT)
-      .mockResolvedValueOnce(FAKE_TASKS)
-      .mockResolvedValueOnce([]) // second tasks fetch after filter change
+      .mockResolvedValueOnce({ project: FAKE_PROJECT })
+      .mockResolvedValueOnce({ tasks: FAKE_TASKS })
+      .mockResolvedValueOnce({ tasks: [] }) // second tasks fetch after filter change
 
     setup()
     await screen.findByRole('heading', { name: 'My Project' })
 
-    const statusFilter = screen.getByRole('combobox', { name: /filter by status/i })
-    await userEvent.selectOptions(statusFilter, 'TODO')
+    const todoButton = screen.getByRole('button', { name: 'Todo' })
+    await userEvent.click(todoButton)
 
     await waitFor(() => {
       expect(mockApiFetch).toHaveBeenCalledWith('/projects/proj-1/tasks?status=TODO')
@@ -204,15 +207,15 @@ describe('ProjectPage', () => {
 
   it('triggers a new task fetch when priority filter changes', async () => {
     mockApiFetch
-      .mockResolvedValueOnce(FAKE_PROJECT)
-      .mockResolvedValueOnce(FAKE_TASKS)
-      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce({ project: FAKE_PROJECT })
+      .mockResolvedValueOnce({ tasks: FAKE_TASKS })
+      .mockResolvedValueOnce({ tasks: [] })
 
     setup()
     await screen.findByRole('heading', { name: 'My Project' })
 
-    const priorityFilter = screen.getByRole('combobox', { name: /filter by priority/i })
-    await userEvent.selectOptions(priorityFilter, 'HIGH')
+    const highButton = screen.getByRole('button', { name: 'High' })
+    await userEvent.click(highButton)
 
     await waitFor(() => {
       expect(mockApiFetch).toHaveBeenCalledWith('/projects/proj-1/tasks?priority=HIGH')

@@ -13,3 +13,19 @@ export const registerSchema = z.object({
 
 export type LoginInput = z.infer<typeof loginSchema>
 export type RegisterInput = z.infer<typeof registerSchema>
+
+export const createProjectSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  description: z.string().optional(),
+  color: z.string().optional(),
+})
+
+export const createTaskSchema = z.object({
+  title: z.string().min(1, 'Title is required'),
+  description: z.string().optional(),
+  priority: z.enum(['LOW', 'MEDIUM', 'HIGH']),
+  dueDate: z.string().optional(),
+})
+
+export type CreateProjectInput = z.infer<typeof createProjectSchema>
+export type CreateTaskInput = z.infer<typeof createTaskSchema>

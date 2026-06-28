@@ -1,12 +1,98 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router'
-import { useProject, useTasks } from '../hooks/use-project'
+import { useProject } from '../hooks/use-project'
+import { useTasks, useUpdateTask } from '../hooks/use-tasks'
+import { NewTaskForm } from '../components/new-task-form'
 import { priorityBadge, statusBadge, card } from '../lib/tokens'
 import { ApiError } from '../lib/api-client'
 import type { Task } from '../lib/types'
 
 type StatusFilter = '' | 'TODO' | 'IN_PROGRESS' | 'DONE'
 type PriorityFilter = '' | 'HIGH' | 'MEDIUM' | 'LOW'
+
+const STATUS_TABS = [
+  { label: 'All', value: '' },
+  { label: 'Todo', value: 'TODO' },
+  { label: 'In Progress', value: 'IN_PROGRESS' },
+  { label: 'Done', value: 'DONE' },
+] as const
+
+const PRIORITY_TABS = [
+  { label: 'All', value: '' },
+  { label: 'High', value: 'HIGH' },
+  { label: 'Medium', value: 'MEDIUM' },
+  { label: 'Low', value: 'LOW' },
+] as const
+
+function formatDate(iso: string): string {
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(new Date(iso))
+}
+
+function isOverdue(dueDate: string | null, status: Task['status']): boolean {
+  if (!dueDate || status === 'DONE') return false
+  return new Date(dueDate) < new Date()
+}
+
+interface TaskCardProps {
+  task: Task
+  projectId: string
+}
+
+function TaskCard({ task, projectId }: TaskCardProps) {
+  const { mutate: update, isPending } = useUpdateTask(projectId)
+  const overdue = isOverdue(task.dueDate, task.status)
+
+  return (
+    <div
+      className={`${card} shadow-sm transition-shadow hover:shadow-md
+        ${overdue ? 'border border-red-300 bg-red-50/40' : 'border border-gray-100'}`}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1 shrink">
+          <p className="font-medium text-gray-900 leading-snug">{task.title}</p>
+          {task.description && (
+            <p className="mt-1 text-sm text-gray-600 line-clamp-2">{task.description}</p>
+          )}
+          {task.dueDate && (
+            <p className={`mt-1.5 text-xs ${overdue ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
+              {overdue ? '⚠ Overdue · ' : 'Due '}
+              {formatDate(task.dueDate)}
+            </p>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <span
+            className={`px-2.5 py-1 rounded-full text-xs font-medium ${priorityBadge[task.priority]}`}
+          >
+            {task.priority}
+          </span>
+
+          <select
+            value={task.status}
+            onChange={e =>
+              update({ taskId: task.id, data: { status: e.target.value as Task['status'] } })
+            }
+            disabled={isPending}
+            aria-label={`Status for ${task.title}`}
+            className={`px-2.5 py-1 rounded-full text-xs font-medium border-0 cursor-pointer
+              appearance-none text-center focus:outline-none focus-visible:ring-2
+              focus-visible:ring-blue-500 disabled:opacity-60 disabled:cursor-not-allowed
+              ${statusBadge[task.status]}`}
+          >
+            <option value="TODO">TODO</option>
+            <option value="IN_PROGRESS">IN PROGRESS</option>
+            <option value="DONE">DONE</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export function ProjectPage() {
   const { id } = useParams<{ id: string }>()
@@ -30,7 +116,10 @@ export function ProjectPage() {
         <p className="text-red-600">
           {is404 ? 'Project not found.' : 'Failed to load project.'}
         </p>
-        <Link to="/dashboard" className="mt-2 inline-block text-sm text-blue-600 hover:underline">
+        <Link
+          to="/dashboard"
+          className="mt-2 inline-block text-sm text-blue-600 hover:underline"
+        >
           ← Back to dashboard
         </Link>
       </div>
@@ -41,14 +130,19 @@ export function ProjectPage() {
 
   return (
     <div>
-      <Link to="/dashboard" className="text-sm text-blue-600 hover:underline mb-4 inline-block">
+      <Link
+        to="/dashboard"
+        className="text-sm text-blue-600 hover:underline mb-4 inline-block
+          focus-visible:outline-2 focus-visible:outline-blue-500 rounded"
+      >
         ← Dashboard
       </Link>
 
+      {/* Project header */}
       <div className="mb-6">
         <div className="flex items-center gap-3">
           <div
-            className="w-4 h-4 rounded-full flex-shrink-0"
+            className="w-4 h-4 rounded-full shrink-0"
             style={{ backgroundColor: project.color }}
             aria-hidden="true"
           />
@@ -62,32 +156,49 @@ export function ProjectPage() {
         </p>
       </div>
 
-      <div className="flex gap-3 mb-4 flex-wrap">
-        <select
-          value={status}
-          onChange={e => setStatus(e.target.value as StatusFilter)}
-          className="px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          aria-label="Filter by status"
-        >
-          <option value="">All statuses</option>
-          <option value="TODO">To do</option>
-          <option value="IN_PROGRESS">In progress</option>
-          <option value="DONE">Done</option>
-        </select>
+      {/* New task */}
+      <NewTaskForm projectId={id!} />
 
-        <select
-          value={priority}
-          onChange={e => setPriority(e.target.value as PriorityFilter)}
-          className="px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          aria-label="Filter by priority"
-        >
-          <option value="">All priorities</option>
-          <option value="HIGH">High</option>
-          <option value="MEDIUM">Medium</option>
-          <option value="LOW">Low</option>
-        </select>
+      {/* Filter bar — tab buttons */}
+      <div className="space-y-2 mb-5">
+        <div className="flex gap-1.5 flex-wrap" role="group" aria-label="Filter by status">
+          {STATUS_TABS.map(tab => (
+            <button
+              key={tab.value}
+              type="button"
+              onClick={() => setStatus(tab.value as StatusFilter)}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors
+                focus-visible:outline-2 focus-visible:outline-blue-500
+                ${status === tab.value
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'}`}
+              aria-pressed={status === tab.value}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex gap-1.5 flex-wrap" role="group" aria-label="Filter by priority">
+          {PRIORITY_TABS.map(tab => (
+            <button
+              key={tab.value}
+              type="button"
+              onClick={() => setPriority(tab.value as PriorityFilter)}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors
+                focus-visible:outline-2 focus-visible:outline-blue-500
+                ${priority === tab.value
+                  ? 'bg-gray-800 text-white'
+                  : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'}`}
+              aria-pressed={priority === tab.value}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
+      {/* Task list */}
       {tasksQuery.isLoading && (
         <p className="text-gray-600" role="status">Loading tasks…</p>
       )}
@@ -99,41 +210,24 @@ export function ProjectPage() {
       )}
 
       {tasksQuery.data && tasksQuery.data.length === 0 && (
-        <div className={`${card} text-center`}>
-          <p className="text-gray-600">No tasks found.</p>
+        <div className={`${card} text-center py-10`}>
+          <p className="text-gray-500">No tasks found.</p>
+          {(status || priority) && (
+            <button
+              type="button"
+              onClick={() => { setStatus(''); setPriority('') }}
+              className="mt-2 text-sm text-blue-600 hover:underline"
+            >
+              Clear filters
+            </button>
+          )}
         </div>
       )}
 
       {tasksQuery.data && tasksQuery.data.length > 0 && (
         <div className="space-y-3">
-          {tasksQuery.data.map((task: Task) => (
-            <div key={task.id} className={card}>
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="font-medium text-gray-900">{task.title}</p>
-                  {task.description && (
-                    <p className="mt-1 text-sm text-gray-600">{task.description}</p>
-                  )}
-                  {task.dueDate && (
-                    <p className="mt-1 text-xs text-gray-400">
-                      Due {new Date(task.dueDate).toLocaleDateString()}
-                    </p>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <span
-                    className={`px-2 py-1 rounded text-xs font-medium ${statusBadge[task.status]}`}
-                  >
-                    {task.status.replace('_', ' ')}
-                  </span>
-                  <span
-                    className={`px-2 py-1 rounded text-xs font-medium ${priorityBadge[task.priority]}`}
-                  >
-                    {task.priority}
-                  </span>
-                </div>
-              </div>
-            </div>
+          {tasksQuery.data.map(task => (
+            <TaskCard key={task.id} task={task} projectId={id!} />
           ))}
         </div>
       )}

@@ -27,4 +27,5 @@ export interface Task {
   dueDate: string | null
   projectId: string
   createdAt: string
+  updatedAt: string
 }
